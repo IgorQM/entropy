@@ -6,7 +6,7 @@ import numpy
 import pandas as pd
 import panel as pn
 import param
-from bokeh.models import CheckboxButtonGroup
+from bokeh.models import CheckboxButtonGroup, Legend
 from bokeh.palettes import Dark2_5 as palette
 from bokeh.plotting import Figure
 
@@ -24,7 +24,7 @@ colors = itertools.cycle(palette)
 class Dashboard(param.Parameterized):
     def __init__(self, **params):
         super().__init__(**params)
-        self._selected_plots = set()
+        self._selected_plots = []
         # self.data_reader = MockDashboardDataReader()
         connector = SqlalchemySqlitePandasConnector("my_db.db", False)
         self.dashboard_data_reader = SqlalchemyDashboardDataReader(connector)
@@ -39,6 +39,7 @@ class Dashboard(param.Parameterized):
         self.df_widget = pn.widgets.DataFrame(
             self._data_frame, name="DataFrame", disabled=True, show_index=False
         )
+
         self.dashboard_title = "# Entropy Dataviewer 0.0.1"
         self.dashboard_desc = "A viewer for the most recent experiments on the database"
 
@@ -60,6 +61,8 @@ class Dashboard(param.Parameterized):
             tools="pan,lasso_select,box_select,crosshair,xwheel_zoom,ywheel_zoom,zoom_in,reset,save,hover",
         )
         self.add_plot_figure.line()
+        self.legend = Legend()
+        # self.add_plot_figure.add_layout(self.legend,'right')
         self.export_to_csv = pn.widgets.FileDownload(
             label="export to csv",
             on_click=self.export_to_csv_callback,
@@ -75,7 +78,7 @@ class Dashboard(param.Parameterized):
     def add_plot_to_combined_callback(self, *events):
 
         plot: PlotRecord = self.plot_tabs_records[self.plot_tabs.active]
-        self._selected_plots.add(plot.experiment_id)
+        self._selected_plots.append(plot)
         plot.bokeh_generator.plot_in_figure(
             self.add_plot_figure,
             plot.plot_data,
@@ -86,7 +89,7 @@ class Dashboard(param.Parameterized):
         self.add_plot_figure.legend.click_policy = "hide"
 
     def toggle_plug_in_combined(self, plot: PlotRecord):
-        self._selected_plots.add(plot.experiment_id)
+        self._selected_plots.append(plot)
         plot.bokeh_generator.plot_in_figure(
             self.add_plot_figure,
             plot.plot_data,
