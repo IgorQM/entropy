@@ -6,7 +6,7 @@ import numpy
 import pandas as pd
 import panel as pn
 import param
-from bokeh.models import CheckboxButtonGroup, Legend
+from bokeh.models import Legend, GlyphRenderer, LegendItem
 from bokeh.palettes import Dark2_5 as palette
 from bokeh.plotting import Figure
 
@@ -24,7 +24,6 @@ colors = itertools.cycle(palette)
 class Dashboard(param.Parameterized):
     def __init__(self, **params):
         super().__init__(**params)
-        self._selected_plots = []
         # self.data_reader = MockDashboardDataReader()
         connector = SqlalchemySqlitePandasConnector("my_db.db", False)
         self.dashboard_data_reader = SqlalchemyDashboardDataReader(connector)
@@ -61,7 +60,8 @@ class Dashboard(param.Parameterized):
             tools="pan,lasso_select,box_select,crosshair,xwheel_zoom,ywheel_zoom,zoom_in,reset,save,hover",
         )
         self.add_plot_figure.line()
-        self.legend = Legend()
+        self._selected_plots = {}
+        # self.legend = Legend()
         # self.add_plot_figure.add_layout(self.legend,'right')
         self.export_to_csv = pn.widgets.FileDownload(
             label="export to csv",
@@ -74,9 +74,9 @@ class Dashboard(param.Parameterized):
     def clear_button_callback(self, *events):
         self.add_plot_figure.renderers = []
         self.add_plot_figure.line()
+        self._selected_plots.clear()
 
     def add_plot_to_combined_callback(self, *events):
-
         plot: PlotRecord = self.plot_tabs_records[self.plot_tabs.active]
         self._selected_plots.append(plot)
         plot.bokeh_generator.plot_in_figure(
@@ -86,18 +86,19 @@ class Dashboard(param.Parameterized):
             color=next(colors),
             label=f"{plot.experiment_id}",
         )
+        self._selected_plots[rend] = plot
+
+        pn.param.Param(param.Boolean(rend.visible)).jscallback(callbacks={'value': self.remove_rend})
         self.add_plot_figure.legend.click_policy = "hide"
 
-    def toggle_plug_in_combined(self, plot: PlotRecord):
-        self._selected_plots.append(plot)
-        plot.bokeh_generator.plot_in_figure(
-            self.add_plot_figure,
-            plot.plot_data,
-            plot.data_type,
-            color=next(colors),
-            label=f"{plot.experiment_id}",
-        )
-        self.add_plot_figure.legend.click_policy = "hide"
+    def remove_rend(self):
+        for rend in self._selected_plots:
+            if not rend.visible:
+                self._selected_plots.pop(rend)
+        self.add_plot_figure.renderers = []
+        self.add_plot_figure.line()
+        for rend in self._selected_plots:
+            self.add_plot_figure.renderers.append(rend)
 
     def export_to_csv_callback(self, *events):
         sio = StringIO()
